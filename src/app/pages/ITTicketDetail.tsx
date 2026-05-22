@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import {
-  ArrowLeft, User, Building, Mail, Phone, Clock, Send, CheckCircle2,
+  ArrowLeft, User, Building, Mail, Clock, Send, CheckCircle2,
   ArrowUpRight, AlertTriangle, MessageSquare, StickyNote, Wrench,
   Package, FileText
 } from 'lucide-react';
@@ -193,7 +193,6 @@ export default function ITTicketDetail() {
                   { icon: User, label: 'Nome', value: ticket.nome },
                   { icon: Building, label: 'Departamento', value: `${ticket.departamento || '—'} · ${ticket.andar}` },
                   { icon: Mail, label: 'Email', value: ticket.email ?? '—' },
-                  { icon: Phone, label: 'Telefone', value: ticket.telefone ?? '—' },
                 ].map((item, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <item.icon className="w-4 h-4 text-slate-400 shrink-0" />

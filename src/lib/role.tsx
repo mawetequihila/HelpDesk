@@ -75,13 +75,20 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       if (mounted) setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+      // Só limpa o utilizador num SIGNED_OUT explícito. Eventos como
+      // TOKEN_REFRESHED ou INITIAL_SESSION podem chegar com session=null
+      // numa janela transitória (ex.: tab volta a ficar visível) e antes
+      // estavam a forçar logout + perda do form que o utilizador estava
+      // a preencher.
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        return;
+      }
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
         if (mounted) setUser(profile);
-      } else {
-        if (mounted) setUser(null);
       }
     });
 
