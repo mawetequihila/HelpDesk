@@ -24,7 +24,7 @@ import { recurrentProblems, weeklyData, categoryData } from '../../data/mock';
 import { useTickets } from '../../lib/hooks';
 import { getPriorityStyle, getStatusStyle } from '../../lib/tickets';
 import type { RecurrentProblem, Status } from '../../lib/types';
-import type { StoredTicket } from '../../lib/store';
+import type { StoredTicket } from '../../lib/api';
 
 interface Metric {
   label: string;

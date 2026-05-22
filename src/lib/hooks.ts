@@ -1,73 +1,101 @@
 /**
- * React hooks for ticket data with realtime subscription.
+ * React hooks for ticket data with Supabase Realtime.
  *
- * In mock mode: subscribes to ticketStore's pub/sub — any mutation via api.*
- * triggers re-renders on all components reading from these hooks.
- *
- * When Supabase comes online: same hooks subscribe to postgres_changes
- * channels via supabase.channel(...). The component API does not change.
+ * Cada hook subscreve aos canais `postgres_changes` das tabelas relevantes.
+ * Quando uma linha muda em qualquer cliente, todos os browsers ligados
+ * refazem o fetch automaticamente.
  */
-import { useMemo, useSyncExternalStore } from 'react';
-import { ticketStore, type StoredTicket } from './store';
-import { getCurrentUser, type ListTicketsParams, type SessionUser } from './api';
-import { useRole } from './role';
-import type { Status } from './types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from './supabase';
+import * as api from './api';
+import type { StoredTicket } from './api';
+import { useRole, type SessionUser } from './role';
 
-function subscribeStore(callback: () => void): () => void {
-  return ticketStore.subscribe(callback);
+const REALTIME_TABLES = ['tickets', 'historico', 'notas_internas', 'avaliacoes'] as const;
+
+/**
+ * Subscreve às mudanças e chama o callback quando algo acontece.
+ * Devolve a função de unsubscribe.
+ */
+function subscribeRealtime(channelName: string, onChange: () => void): () => void {
+  let channel = supabase.channel(channelName);
+  for (const table of REALTIME_TABLES) {
+    channel = channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table },
+      () => onChange(),
+    );
+  }
+  channel.subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
 
-function getAllTickets(): StoredTicket[] {
-  return ticketStore.list();
-}
-
-function filterTickets(tickets: StoredTicket[], params: ListTicketsParams): StoredTicket[] {
-  let out = tickets;
-  if (params.ownedByEmail) {
-    out = out.filter((t) => t.email === params.ownedByEmail);
-  }
-  if (params.statusIn && params.statusIn.length > 0) {
-    const set = new Set<Status>(params.statusIn);
-    out = out.filter((t) => set.has(t.status));
-  }
-  if (params.search?.trim()) {
-    const q = params.search.toLowerCase();
-    out = out.filter((t) => {
-      const haystack = [
-        String(t.id),
-        t.nome,
-        t.email ?? '',
-        t.categoria,
-        t.status,
-        t.prioridade,
-        t.tecnico,
-        t.descricao ?? '',
-        t.departamento,
-      ]
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }
-  return out;
-}
-
-export function useTickets(params: ListTicketsParams = {}): StoredTicket[] {
-  const all = useSyncExternalStore(subscribeStore, getAllTickets, getAllTickets);
+export function useTickets(params: api.ListTicketsParams = {}): StoredTicket[] {
+  const [tickets, setTickets] = useState<StoredTicket[]>([]);
   const paramsKey = JSON.stringify(params);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => filterTickets(all, params), [all, paramsKey]);
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const refetch = async () => {
+      try {
+        const data = await api.listTickets(paramsRef.current);
+        if (mounted) setTickets(data);
+      } catch (err) {
+        console.error('useTickets refetch failed', err);
+      }
+    };
+
+    refetch();
+    const unsubscribe = subscribeRealtime(`tickets-list-${Math.random().toString(36).slice(2, 8)}`, refetch);
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsKey]);
+
+  return tickets;
 }
 
 export function useTicketById(id: number | undefined | null): StoredTicket | undefined {
-  return useSyncExternalStore(
-    subscribeStore,
-    () => (id == null ? undefined : ticketStore.get(id)),
-    () => undefined,
-  );
+  const [ticket, setTicket] = useState<StoredTicket | undefined>(undefined);
+
+  useEffect(() => {
+    if (id == null) {
+      setTicket(undefined);
+      return;
+    }
+
+    let mounted = true;
+
+    const refetch = async () => {
+      try {
+        const data = await api.getTicket(id);
+        if (mounted) setTicket(data);
+      } catch (err) {
+        console.error('useTicketById refetch failed', err);
+      }
+    };
+
+    refetch();
+    const unsubscribe = subscribeRealtime(`ticket-${id}`, refetch);
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+  }, [id]);
+
+  return ticket;
 }
 
 export function useSessionUser(): SessionUser | null {
-  const { role } = useRole();
-  return role ? getCurrentUser() : null;
+  const { user } = useRole();
+  return useMemo(() => user, [user]);
 }

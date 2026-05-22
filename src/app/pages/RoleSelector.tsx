@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, type Variants } from 'motion/react';
-import { User, LayoutDashboard, ArrowRight, Headphones, Shield } from 'lucide-react';
+import { User, LayoutDashboard, ArrowRight, Headphones, Shield, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useRole } from '../../lib/role';
 import type { Role } from '../../lib/types';
 import { Logo } from '../components/layout/Logo';
@@ -57,11 +59,24 @@ const itemVariants: Variants = {
 
 export default function RoleSelector() {
   const navigate = useNavigate();
-  const { setRole } = useRole();
+  const { signInAs } = useRole();
+  const [pending, setPending] = useState<Role | null>(null);
 
-  const handleSelect = (role: Role, href: string) => {
-    setRole(role);
-    navigate(href);
+  const handleSelect = async (role: Role, href: string) => {
+    if (pending) return;
+    setPending(role);
+    try {
+      await signInAs(role);
+      navigate(href);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Falha no login.';
+      toast.error('Não foi possível entrar.', {
+        description: msg.includes('Invalid login')
+          ? 'Verifica se as contas demo foram criadas no Supabase Studio.'
+          : msg,
+      });
+      setPending(null);
+    }
   };
 
   return (
@@ -99,16 +114,20 @@ export default function RoleSelector() {
           {roles.map((role) => {
             const Icon = role.icon;
             const AccentIcon = role.accentIcon;
+            const isPending = pending === role.id;
+            const disabled = pending !== null;
             return (
               <motion.button
                 key={role.id}
                 variants={itemVariants}
-                whileHover={{ scale: 1.02, y: -4 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={disabled ? undefined : { scale: 1.02, y: -4 }}
+                whileTap={disabled ? undefined : { scale: 0.98 }}
                 onClick={() => handleSelect(role.id, role.href)}
+                disabled={disabled}
                 className={`
-                  relative group text-left p-7 rounded-2xl border-2 bg-white 
-                  transition-all duration-300 shadow-sm hover:shadow-xl 
+                  relative group text-left p-7 rounded-2xl border-2 bg-white
+                  transition-all duration-300 shadow-sm hover:shadow-xl
+                  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm
                   ${role.border} ${role.bg}
                 `}
               >
@@ -132,8 +151,17 @@ export default function RoleSelector() {
 
                 {/* CTA */}
                 <div className={`flex items-center gap-2 text-sm font-semibold ${role.iconColor} group-hover:gap-3 transition-all`}>
-                  Entrar
-                  <ArrowRight className="w-4 h-4" />
+                  {isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      A entrar...
+                    </>
+                  ) : (
+                    <>
+                      Entrar
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </div>
               </motion.button>
             );

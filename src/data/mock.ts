@@ -1,127 +1,11 @@
 import { Key, Monitor, Network, Phone, Printer } from 'lucide-react';
-import type { RecurrentProblem, Ticket } from '../lib/types';
+import type { RecurrentProblem } from '../lib/types';
 
-export const mockUserTickets: Ticket[] = [
-  {
-    id: 14523,
-    nome: 'Carlos Oliveira',
-    departamento: 'DCIMTS',
-    andar: 'MCC',
-    categoria: 'Computador',
-    prioridade: 'Alta',
-    status: 'Em andamento',
-    data: '18/05/2026',
-    tecnico: 'João Silva',
-    ultimaAtualizacao: 'Há 30 minutos',
-    descricao: 'Computador não liga, tela preta ao iniciar o sistema.',
-    historico: [
-      { data: '18/05/2026 09:30', evento: 'Chamado criado', autor: 'Sistema' },
-      { data: '18/05/2026 09:35', evento: 'Técnico assumiu o chamado', autor: 'João Silva' },
-      {
-        data: '18/05/2026 10:15',
-        evento: 'Mensagem enviada',
-        autor: 'João Silva',
-        mensagem: 'Vou verificar o equipamento em breve, por favor não desconecte da tomada.',
-      },
-    ],
-  },
-  {
-    id: 14522,
-    nome: 'Ana Paula',
-    departamento: 'DASG',
-    andar: 'SEDE',
-    categoria: 'Rede',
-    prioridade: 'Média',
-    status: 'Aberto',
-    data: '17/05/2026',
-    tecnico: '-',
-    ultimaAtualizacao: 'Há 1 dia',
-    descricao: 'A internet na SEDE está oscilando muito hoje, trabalhadores do DASG afetados.',
-    historico: [{ data: '17/05/2026 14:20', evento: 'Chamado criado', autor: 'Sistema' }],
-  },
-  {
-    id: 14501,
-    nome: 'Roberto Santos',
-    departamento: 'DADG',
-    andar: 'MCC',
-    categoria: 'Impressora',
-    prioridade: 'Baixa',
-    status: 'Resolvido',
-    data: '15/05/2026',
-    tecnico: 'Maria Santos',
-    ultimaAtualizacao: 'Há 3 dias',
-    descricao: 'A impressora do DADG acusa falta de toner preto.',
-    historico: [
-      { data: '15/05/2026 11:00', evento: 'Chamado criado', autor: 'Sistema' },
-      { data: '15/05/2026 11:15', evento: 'Técnico assumiu o chamado', autor: 'Maria Santos' },
-      {
-        data: '15/05/2026 15:30',
-        evento: 'Problema resolvido',
-        autor: 'Maria Santos',
-        mensagem: 'Toner substituído com sucesso.',
-      },
-    ],
-  },
-];
-
-export const mockActiveTickets: Ticket[] = [
-  {
-    id: 14523,
-    nome: 'Carlos Oliveira',
-    departamento: 'DCIMTS',
-    andar: 'MCC',
-    categoria: 'Computador',
-    prioridade: 'Crítica',
-    status: 'Aberto',
-    data: '18/05/2026',
-    tecnico: '-',
-    ultimaAtualizacao: 'Há 15 minutos',
-    tempo: '15 min',
-    historico: [],
-  },
-  {
-    id: 14522,
-    nome: 'Ana Paula',
-    departamento: 'DASG',
-    andar: 'SEDE',
-    categoria: 'Rede',
-    prioridade: 'Alta',
-    status: 'Em andamento',
-    data: '18/05/2026',
-    tecnico: 'João Silva',
-    ultimaAtualizacao: 'Há 45 minutos',
-    tempo: '45 min',
-    historico: [],
-  },
-  {
-    id: 14521,
-    nome: 'Roberto Santos',
-    departamento: 'DADG',
-    andar: 'MCC',
-    categoria: 'Impressora',
-    prioridade: 'Média',
-    status: 'Em andamento',
-    data: '18/05/2026',
-    tecnico: 'Maria Santos',
-    ultimaAtualizacao: 'Há 1h 20min',
-    tempo: '1h 20min',
-    historico: [],
-  },
-  {
-    id: 14520,
-    nome: 'Julia Mendes',
-    departamento: 'DDAE',
-    andar: 'SEDE',
-    categoria: 'Acesso/Senha',
-    prioridade: 'Baixa',
-    status: 'Aguardando',
-    data: '18/05/2026',
-    tecnico: 'Pedro Costa',
-    ultimaAtualizacao: 'Há 2h 15min',
-    tempo: '2h 15min',
-    historico: [],
-  },
-];
+/**
+ * Dados agregados estáticos usados pelos charts do dashboard.
+ * Estes não vêm da base de dados ainda — virão de views/RPCs no Supabase
+ * numa próxima fase (calculados a partir de tickets resolvidos).
+ */
 
 export const recurrentProblems: RecurrentProblem[] = [
   {
@@ -202,13 +86,6 @@ export const recurrentProblems: RecurrentProblem[] = [
         solucao: 'Senha expirada (90 dias). Reset manual e orientação sobre self-service.',
         materiais: 'Nenhum',
       },
-      {
-        id: 14458,
-        data: '02/05/2026',
-        tecnico: 'Pedro Costa',
-        solucao: 'Utilizador esqueceu senha nova criada no mesmo dia. Novo reset com nova senha temporária.',
-        materiais: 'Nenhum',
-      },
     ],
   },
   {
@@ -245,13 +122,6 @@ export const recurrentProblems: RecurrentProblem[] = [
         tecnico: 'Pedro Costa',
         solucao: 'Aparelho IP perdeu registo no PABX após queda de energia. Reboot e reconfigurado.',
         materiais: 'Nenhum',
-      },
-      {
-        id: 14455,
-        data: '01/05/2026',
-        tecnico: 'João Silva',
-        solucao: 'Aparelho com defeito no microfone interno. Substituído por aparelho de backup.',
-        materiais: 'Grandstream GXP1615 (Backup)',
       },
     ],
   },

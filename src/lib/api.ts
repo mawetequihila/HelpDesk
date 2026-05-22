@@ -1,67 +1,202 @@
 /**
- * AVance HelpDesk · API abstraction layer.
+ * AVance HelpDesk · API layer (Supabase).
  *
- * Today: mock-backed using ticketStore. Latency is simulated so the UX
- * matches real network behaviour. When Supabase comes online, this file
- * is the only one that swaps to supabase.from(...) calls — the rest of
- * the app (pages, hooks) does not change.
- *
- * Naming mirrors the future Supabase calls so the diff is minimal.
+ * Cada função devolve o shape `StoredTicket` que as páginas esperam.
+ * O mapeamento de linhas Supabase → StoredTicket vive em `mapTicketRow`.
  */
-import {
-  ticketStore,
-  nowStamp,
-  todayDateStamp,
-  MOCK_FUNCIONARIO_EMAIL,
-  MOCK_FUNCIONARIO_NOME,
-  type StoredTicket,
-} from './store';
+import { supabase } from './supabase';
 import type {
   Building,
   Category,
+  HistoryEntry,
   Impact,
   Priority,
-  Role,
   Status,
 } from './types';
 
 // =====================================================================
-// Session
+// Helpers
 // =====================================================================
 
-const ROLE_STORAGE_KEY = 'avance.role';
-const SIMULATED_LATENCY_MS = 120;
+const TICKET_SELECT = `
+  id, status, prioridade, categoria, outra_categoria, andar, impacto, desde,
+  observacoes, solucao, materiais_usados, causa_raiz, acao_preventiva,
+  tempo_gasto, resolvido_em, encerrado_em, created_at, updated_at,
+  requisitante:requisitante_id ( id, nome, email, telefone, departamento ),
+  tecnico:tecnico_id ( id, nome ),
+  historico ( id, created_at, evento, autor_nome, mensagem, tipo ),
+  notas_internas ( id, autor_nome, texto, created_at ),
+  avaliacoes ( estrelas, comentario, created_at )
+`;
 
-const delay = (ms: number = SIMULATED_LATENCY_MS): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
-
-export interface SessionUser {
-  id: string;
-  nome: string;
-  email: string;
-  role: Role;
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
 }
 
-const MOCK_FUNCIONARIO: SessionUser = {
-  id: 'mock-funcionario-1',
-  nome: MOCK_FUNCIONARIO_NOME,
-  email: MOCK_FUNCIONARIO_EMAIL,
-  role: 'funcionario',
-};
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
 
-const MOCK_TI: SessionUser = {
-  id: 'mock-ti-1',
-  nome: 'João Silva',
-  email: 'joao.silva@ggpen.gov.ao',
-  role: 'ti',
-};
+function formatDateTime(iso: string): string {
+  const d = new Date(iso);
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
-export function getCurrentUser(): SessionUser | null {
-  if (typeof window === 'undefined') return null;
-  const role = window.localStorage.getItem(ROLE_STORAGE_KEY);
-  if (role === 'ti') return MOCK_TI;
-  if (role === 'funcionario') return MOCK_FUNCIONARIO;
-  return null;
+function formatRelative(iso: string): string {
+  const now = Date.now();
+  const then = new Date(iso).getTime();
+  const diffMs = now - then;
+  const min = Math.floor(diffMs / 60000);
+  if (min < 1) return 'agora mesmo';
+  if (min < 60) return `Há ${min} ${min === 1 ? 'minuto' : 'minutos'}`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `Há ${hr} ${hr === 1 ? 'hora' : 'horas'}`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `Há ${day} ${day === 1 ? 'dia' : 'dias'}`;
+  return formatDate(iso);
+}
+
+export interface StoredNote {
+  id: number;
+  data: string;
+  texto: string;
+  autor: string;
+}
+
+export interface StoredRating {
+  estrelas: number;
+  comentario?: string;
+  data: string;
+}
+
+export interface StoredTicket {
+  id: number;
+  nome: string;
+  email?: string;
+  telefone?: string;
+  departamento: string;
+  andar: Building;
+  categoria: Category;
+  prioridade: Priority;
+  status: Status;
+  impacto?: Impact;
+  desde?: string;
+  observacoes?: string;
+  descricao?: string;
+  data: string;
+  tecnico: string;
+  ultimaAtualizacao: string;
+  tempo?: string;
+  historico: HistoryEntry[];
+  notas: StoredNote[];
+  avaliacao?: StoredRating;
+}
+
+interface TicketRow {
+  id: number;
+  status: Status;
+  prioridade: Priority;
+  categoria: Category;
+  outra_categoria: string | null;
+  andar: Building;
+  impacto: Impact;
+  desde: string;
+  observacoes: string | null;
+  solucao: string | null;
+  materiais_usados: string | null;
+  causa_raiz: string | null;
+  acao_preventiva: string | null;
+  tempo_gasto: string | null;
+  resolvido_em: string | null;
+  encerrado_em: string | null;
+  created_at: string;
+  updated_at: string;
+  requisitante: { id: string; nome: string; email: string; telefone: string | null; departamento: string | null } | null;
+  tecnico: { id: string; nome: string } | null;
+  historico: {
+    id: number;
+    created_at: string;
+    evento: string;
+    autor_nome: string;
+    mensagem: string | null;
+    tipo: 'system' | 'action' | 'message';
+  }[];
+  notas_internas: {
+    id: number;
+    autor_nome: string;
+    texto: string;
+    created_at: string;
+  }[];
+  avaliacoes: {
+    estrelas: number;
+    comentario: string | null;
+    created_at: string;
+  }[];
+}
+
+function mapTicketRow(row: TicketRow): StoredTicket {
+  const historico: HistoryEntry[] = [...row.historico]
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((h) => ({
+      data: formatDateTime(h.created_at),
+      evento: h.evento,
+      autor: h.autor_nome,
+      mensagem: h.mensagem ?? undefined,
+      tipo: h.tipo,
+    }));
+
+  const notas: StoredNote[] = [...row.notas_internas]
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .map((n) => ({
+      id: n.id,
+      data: formatDateTime(n.created_at),
+      texto: n.texto,
+      autor: n.autor_nome,
+    }));
+
+  const aval = row.avaliacoes[0];
+  const avaliacao: StoredRating | undefined = aval
+    ? {
+        estrelas: aval.estrelas,
+        comentario: aval.comentario ?? undefined,
+        data: formatDateTime(aval.created_at),
+      }
+    : undefined;
+
+  return {
+    id: row.id,
+    nome: row.requisitante?.nome ?? '—',
+    email: row.requisitante?.email,
+    telefone: row.requisitante?.telefone ?? undefined,
+    departamento: row.requisitante?.departamento ?? '—',
+    andar: row.andar,
+    categoria: row.categoria,
+    prioridade: row.prioridade,
+    status: row.status,
+    impacto: row.impacto,
+    desde: row.desde,
+    observacoes: row.observacoes ?? undefined,
+    descricao: row.observacoes ?? undefined,
+    data: formatDate(row.created_at),
+    tecnico: row.tecnico?.nome ?? '-',
+    ultimaAtualizacao: formatRelative(row.updated_at),
+    historico,
+    notas,
+    avaliacao,
+  };
+}
+
+async function getCurrentProfile(): Promise<{ id: string; nome: string; role: string } | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, nome, role')
+    .eq('id', user.id)
+    .single();
+  if (!profile) return null;
+  return profile;
 }
 
 // =====================================================================
@@ -75,44 +210,52 @@ export interface ListTicketsParams {
 }
 
 export async function listTickets(params: ListTicketsParams = {}): Promise<StoredTicket[]> {
-  await delay();
-  let tickets = ticketStore.list();
+  let query = supabase
+    .from('tickets')
+    .select(TICKET_SELECT)
+    .order('created_at', { ascending: false });
+
+  if (params.statusIn && params.statusIn.length > 0) {
+    query = query.in('status', params.statusIn);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  if (!data) return [];
+
+  let tickets = (data as unknown as TicketRow[]).map(mapTicketRow);
+
   if (params.ownedByEmail) {
     tickets = tickets.filter((t) => t.email === params.ownedByEmail);
   }
-  if (params.statusIn && params.statusIn.length > 0) {
-    const set = new Set(params.statusIn);
-    tickets = tickets.filter((t) => set.has(t.status));
-  }
+
   if (params.search?.trim()) {
     const q = params.search.toLowerCase();
     tickets = tickets.filter((t) => {
       const haystack = [
-        String(t.id),
-        t.nome,
-        t.email ?? '',
-        t.categoria,
-        t.status,
-        t.prioridade,
-        t.tecnico,
-        t.descricao ?? '',
-        t.departamento,
-      ]
-        .join(' ')
-        .toLowerCase();
+        String(t.id), t.nome, t.email ?? '', t.categoria, t.status,
+        t.prioridade, t.tecnico, t.descricao ?? '', t.departamento,
+      ].join(' ').toLowerCase();
       return haystack.includes(q);
     });
   }
+
   return tickets;
 }
 
 export async function getTicket(id: number): Promise<StoredTicket | undefined> {
-  await delay(60);
-  return ticketStore.get(id);
+  const { data, error } = await supabase
+    .from('tickets')
+    .select(TICKET_SELECT)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return undefined;
+  return mapTicketRow(data as unknown as TicketRow);
 }
 
 // =====================================================================
-// Mutations · funcionario
+// Mutations · funcionário
 // =====================================================================
 
 export interface CreateTicketInput {
@@ -131,215 +274,183 @@ export interface CreateTicketInput {
 }
 
 export async function createTicket(input: CreateTicketInput): Promise<StoredTicket> {
-  await delay();
-  const id = ticketStore.reserveTicketId();
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão. Volta a fazer login.');
+
   const departamento =
     input.departamento === 'Outro' && input.outroDepartamento
       ? input.outroDepartamento
       : input.departamento;
   const desde =
     input.desde === 'Outro' && input.outroDesdequando ? input.outroDesdequando : input.desde;
+  const outraCategoria =
+    input.area === 'Outro' && input.outraArea ? input.outraArea : null;
 
-  const ticket: StoredTicket = {
-    id,
-    nome: input.nome,
-    email: input.email,
-    departamento,
-    andar: input.andar,
-    categoria: input.area,
-    prioridade: input.urgencia,
-    status: 'Aberto',
-    impacto: input.impacto,
-    desde,
-    observacoes: input.observacoes,
-    descricao: input.observacoes,
-    data: todayDateStamp(),
-    tecnico: '-',
-    ultimaAtualizacao: 'agora mesmo',
-    historico: [
-      {
-        data: nowStamp(),
-        evento: 'Chamado criado',
-        autor: 'Sistema',
-        tipo: 'system',
-      },
-    ],
-    notas: [],
-  };
-  ticketStore.upsert(ticket);
-  return ticket;
+  // Enriquece o perfil com os dados do form (nome/departamento podem ainda estar vazios)
+  await supabase
+    .from('profiles')
+    .update({
+      nome: input.nome,
+      departamento,
+      andar: input.andar,
+    })
+    .eq('id', profile.id);
+
+  const { data, error } = await supabase
+    .from('tickets')
+    .insert({
+      requisitante_id: profile.id,
+      categoria: input.area,
+      outra_categoria: outraCategoria,
+      prioridade: input.urgencia,
+      impacto: input.impacto,
+      andar: input.andar,
+      desde,
+      observacoes: input.observacoes || null,
+    })
+    .select(TICKET_SELECT)
+    .single();
+  if (error) throw error;
+
+  return mapTicketRow(data as unknown as TicketRow);
 }
 
-export async function confirmResolution(id: number): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  return ticketStore.patch(id, (t) => ({
-    ...t,
-    status: 'Encerrado',
-    ultimaAtualizacao: 'agora mesmo',
-    historico: [
-      ...t.historico,
-      {
-        data: nowStamp(),
-        evento: 'Resolução confirmada pelo funcionário',
-        autor: user?.nome ?? 'Funcionário',
-        tipo: 'action',
-      },
-    ],
-  }));
+export async function confirmResolution(id: number): Promise<void> {
+  const profile = await getCurrentProfile();
+  const { error } = await supabase
+    .from('tickets')
+    .update({ status: 'Encerrado', encerrado_em: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw error;
+  if (profile) {
+    await supabase.from('historico').insert({
+      ticket_id: id,
+      autor_id: profile.id,
+      autor_nome: profile.nome,
+      tipo: 'action',
+      evento: 'Resolução confirmada pelo funcionário',
+    });
+  }
 }
 
-export async function reopenTicket(
-  id: number,
-  motivo: string,
-): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  return ticketStore.patch(id, (t) => ({
-    ...t,
-    status: 'Em andamento',
-    ultimaAtualizacao: 'agora mesmo',
-    historico: [
-      ...t.historico,
-      {
-        data: nowStamp(),
-        evento: 'Chamado reaberto pelo funcionário',
-        autor: user?.nome ?? 'Funcionário',
-        mensagem: motivo,
-        tipo: 'message',
-      },
-    ],
-  }));
+export async function reopenTicket(id: number, motivo: string): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão.');
+  const { error } = await supabase
+    .from('tickets')
+    .update({ status: 'Em andamento', resolvido_em: null })
+    .eq('id', id);
+  if (error) throw error;
+  await supabase.from('historico').insert({
+    ticket_id: id,
+    autor_id: profile.id,
+    autor_nome: profile.nome,
+    tipo: 'message',
+    evento: 'Chamado reaberto pelo funcionário',
+    mensagem: motivo,
+  });
 }
 
 export async function rateTicket(
   id: number,
   estrelas: number,
   comentario?: string,
-): Promise<StoredTicket | undefined> {
-  await delay();
-  return ticketStore.patch(id, (t) => ({
-    ...t,
-    avaliacao: { estrelas, comentario, data: nowStamp() },
-  }));
+): Promise<void> {
+  const { error } = await supabase
+    .from('avaliacoes')
+    .insert({ ticket_id: id, estrelas, comentario: comentario ?? null });
+  if (error) throw error;
 }
 
 // =====================================================================
 // Mutations · TI
 // =====================================================================
 
-export async function assumeTicket(id: number): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  if (!user) throw new Error('Sem sessão');
-  return ticketStore.patch(id, (t) => {
-    if (t.tecnico && t.tecnico !== '-') return t;
-    return {
-      ...t,
-      tecnico: user.nome,
-      status: t.status === 'Aberto' ? 'Em andamento' : t.status,
-      ultimaAtualizacao: 'agora mesmo',
-      historico: [
-        ...t.historico,
-        {
-          data: nowStamp(),
-          evento: `Técnico ${user.nome} assumiu o chamado`,
-          autor: user.nome,
-          tipo: 'action',
-        },
-      ],
-    };
+export async function assumeTicket(id: number): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão.');
+
+  const { data: current } = await supabase
+    .from('tickets')
+    .select('tecnico_id, status')
+    .eq('id', id)
+    .single();
+  if (current?.tecnico_id) {
+    throw new Error('Chamado já atribuído.');
+  }
+
+  const nextStatus = current?.status === 'Aberto' ? 'Em andamento' : current?.status;
+  const { error } = await supabase
+    .from('tickets')
+    .update({ tecnico_id: profile.id, status: nextStatus })
+    .eq('id', id);
+  if (error) throw error;
+
+  await supabase.from('historico').insert({
+    ticket_id: id,
+    autor_id: profile.id,
+    autor_nome: profile.nome,
+    tipo: 'action',
+    evento: `Técnico ${profile.nome} assumiu o chamado`,
   });
 }
 
-export async function changeStatus(
-  id: number,
-  next: Status,
-): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  return ticketStore.patch(id, (t) => {
-    if (t.status === next) return t;
-    return {
-      ...t,
-      status: next,
-      ultimaAtualizacao: 'agora mesmo',
-      historico: [
-        ...t.historico,
-        {
-          data: nowStamp(),
-          evento: `Estado alterado para "${next}"`,
-          autor: user?.nome ?? 'Sistema',
-          tipo: 'action',
-        },
-      ],
-    };
+export async function changeStatus(id: number, next: Status): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão.');
+  const { error } = await supabase
+    .from('tickets')
+    .update({ status: next })
+    .eq('id', id);
+  if (error) throw error;
+  await supabase.from('historico').insert({
+    ticket_id: id,
+    autor_id: profile.id,
+    autor_nome: profile.nome,
+    tipo: 'action',
+    evento: `Estado alterado para "${next}"`,
   });
 }
 
-export async function sendMessage(
-  id: number,
-  mensagem: string,
-): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  if (!user) throw new Error('Sem sessão');
-  return ticketStore.patch(id, (t) => ({
-    ...t,
-    ultimaAtualizacao: 'agora mesmo',
-    historico: [
-      ...t.historico,
-      {
-        data: nowStamp(),
-        evento: user.role === 'ti' ? 'Mensagem ao funcionário' : 'Mensagem ao técnico',
-        autor: user.nome,
-        mensagem,
-        tipo: 'message',
-      },
-    ],
-  }));
+export async function sendMessage(id: number, mensagem: string): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão.');
+  const evento = profile.role === 'ti' ? 'Mensagem ao funcionário' : 'Mensagem ao técnico';
+  const { error } = await supabase.from('historico').insert({
+    ticket_id: id,
+    autor_id: profile.id,
+    autor_nome: profile.nome,
+    tipo: 'message',
+    evento,
+    mensagem,
+  });
+  if (error) throw error;
+  await supabase.from('tickets').update({ updated_at: new Date().toISOString() }).eq('id', id);
 }
 
-export async function addInternalNote(
-  id: number,
-  texto: string,
-): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  if (!user) throw new Error('Sem sessão');
-  return ticketStore.patch(id, (t) => ({
-    ...t,
-    notas: [
-      ...t.notas,
-      {
-        id: ticketStore.reserveNoteId(),
-        data: nowStamp(),
-        texto,
-        autor: user.nome,
-      },
-    ],
-  }));
+export async function addInternalNote(id: number, texto: string): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão.');
+  const { error } = await supabase.from('notas_internas').insert({
+    ticket_id: id,
+    autor_id: profile.id,
+    autor_nome: profile.nome,
+    texto,
+  });
+  if (error) throw error;
 }
 
-export async function escalateTicket(
-  id: number,
-  motivo: string,
-): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  return ticketStore.patch(id, (t) => ({
-    ...t,
-    ultimaAtualizacao: 'agora mesmo',
-    historico: [
-      ...t.historico,
-      {
-        data: nowStamp(),
-        evento: `Chamado escalado: ${motivo}`,
-        autor: user?.nome ?? 'Sistema',
-        tipo: 'action',
-      },
-    ],
-  }));
+export async function escalateTicket(id: number, motivo: string): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão.');
+  const { error } = await supabase.from('historico').insert({
+    ticket_id: id,
+    autor_id: profile.id,
+    autor_nome: profile.nome,
+    tipo: 'action',
+    evento: `Chamado escalado: ${motivo}`,
+  });
+  if (error) throw error;
 }
 
 export interface ResolutionInput {
@@ -350,25 +461,28 @@ export interface ResolutionInput {
   tempoGasto?: string;
 }
 
-export async function closeTicket(
-  id: number,
-  resolution: ResolutionInput,
-): Promise<StoredTicket | undefined> {
-  await delay();
-  const user = getCurrentUser();
-  return ticketStore.patch(id, (t) => ({
-    ...t,
-    status: 'Resolvido',
-    ultimaAtualizacao: 'agora mesmo',
-    historico: [
-      ...t.historico,
-      {
-        data: nowStamp(),
-        evento: 'Chamado resolvido',
-        autor: user?.nome ?? 'Sistema',
-        mensagem: resolution.solucao,
-        tipo: 'message',
-      },
-    ],
-  }));
+export async function closeTicket(id: number, resolution: ResolutionInput): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('Sem sessão.');
+  const { error } = await supabase
+    .from('tickets')
+    .update({
+      status: 'Resolvido',
+      solucao: resolution.solucao,
+      materiais_usados: resolution.materiaisUsados ?? null,
+      causa_raiz: resolution.causaRaiz ?? null,
+      acao_preventiva: resolution.acaoPreventiva ?? null,
+      tempo_gasto: resolution.tempoGasto ?? null,
+      resolvido_em: new Date().toISOString(),
+    })
+    .eq('id', id);
+  if (error) throw error;
+  await supabase.from('historico').insert({
+    ticket_id: id,
+    autor_id: profile.id,
+    autor_nome: profile.nome,
+    tipo: 'message',
+    evento: 'Chamado resolvido',
+    mensagem: resolution.solucao,
+  });
 }

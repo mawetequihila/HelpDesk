@@ -15,11 +15,20 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { role, setRole } = useRole();
+  const { role, user, signOut } = useRole();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const displayName = user?.nome ?? 'Utilizador';
+  const displayEmail = user?.email ?? '';
+  const initials = (user?.nome ?? '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? '')
+    .join('') || '?';
 
   const funcionarioNav = [
     { name: 'Abrir Chamado', href: '/abrir-chamado', icon: PlusCircle },
@@ -30,8 +39,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   ];
   const navigation = role === 'ti' ? tiNav : funcionarioNav;
 
-  const handleLogout = () => {
-    setRole(null);
+  const handleLogout = async () => {
+    await signOut();
     navigate('/', { replace: true });
   };
 
@@ -74,11 +83,14 @@ export function AppLayout({ children }: AppLayoutProps) {
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors group">
               <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-brand-dark to-brand flex items-center justify-center text-white font-medium text-sm shadow-md shadow-brand/20">
-                MQ
+                {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 truncate">Mawete Quihila</p>
-                <p className="text-xs text-slate-500 truncate">mawete@empresa.com</p>
+                <p className="text-sm font-medium text-slate-900 truncate">{displayName}</p>
+                <p className="text-xs text-slate-500 truncate">
+                  {displayEmail}
+                  {role && <span className="ml-1 text-brand-dark font-medium">· {role === 'ti' ? 'TI' : 'Funcionário'}</span>}
+                </p>
               </div>
               <ChevronUp className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
             </div>
