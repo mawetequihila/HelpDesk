@@ -75,6 +75,7 @@ export default function RoleSelector() {
           ? 'Verifica se as contas demo foram criadas no Supabase Studio.'
           : msg,
       });
+    } finally {
       setPending(null);
     }
   };

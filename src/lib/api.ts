@@ -18,6 +18,18 @@ import type {
 // Helpers
 // =====================================================================
 
+function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    Promise.resolve(p),
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${label} excedeu ${ms / 1000}s. Verifica a tua ligação.`)),
+        ms,
+      ),
+    ),
+  ]);
+}
+
 const TICKET_SELECT = `
   id, status, prioridade, categoria, outra_categoria, andar, impacto, desde,
   observacoes, solucao, materiais_usados, causa_raiz, acao_preventiva,
@@ -188,13 +200,17 @@ function mapTicketRow(row: TicketRow): StoredTicket {
 }
 
 async function getCurrentProfile(): Promise<{ id: string; nome: string; role: string } | null> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8_000, 'getUser');
   if (!user) return null;
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, nome, role')
-    .eq('id', user.id)
-    .single();
+  const { data: profile, error } = await withTimeout(
+    supabase.from('profiles').select('id, nome, role').eq('id', user.id).single(),
+    8_000,
+    'getProfile',
+  );
+  if (error) {
+    console.error('[api] getCurrentProfile error:', error);
+    return null;
+  }
   if (!profile) return null;
   return profile;
 }
@@ -274,8 +290,10 @@ export interface CreateTicketInput {
 }
 
 export async function createTicket(input: CreateTicketInput): Promise<StoredTicket> {
+  console.log('[api] createTicket: fetching current profile…');
   const profile = await getCurrentProfile();
   if (!profile) throw new Error('Sem sessão. Volta a fazer login.');
+  console.log('[api] createTicket: profile', profile);
 
   const departamento =
     input.departamento === 'Outro' && input.outroDepartamento
@@ -287,30 +305,42 @@ export async function createTicket(input: CreateTicketInput): Promise<StoredTick
     input.area === 'Outro' && input.outraArea ? input.outraArea : null;
 
   // Enriquece o perfil com os dados do form (nome/departamento podem ainda estar vazios)
-  await supabase
-    .from('profiles')
-    .update({
-      nome: input.nome,
-      departamento,
-      andar: input.andar,
-    })
-    .eq('id', profile.id);
+  const { error: profileUpdateError } = await withTimeout(
+    supabase
+      .from('profiles')
+      .update({ nome: input.nome, departamento, andar: input.andar })
+      .eq('id', profile.id),
+    10_000,
+    'Atualizar perfil',
+  );
+  if (profileUpdateError) {
+    console.warn('[api] profile update warning:', profileUpdateError);
+  }
 
-  const { data, error } = await supabase
-    .from('tickets')
-    .insert({
-      requisitante_id: profile.id,
-      categoria: input.area,
-      outra_categoria: outraCategoria,
-      prioridade: input.urgencia,
-      impacto: input.impacto,
-      andar: input.andar,
-      desde,
-      observacoes: input.observacoes || null,
-    })
-    .select(TICKET_SELECT)
-    .single();
-  if (error) throw error;
+  console.log('[api] createTicket: inserting ticket…');
+  const { data, error } = await withTimeout(
+    supabase
+      .from('tickets')
+      .insert({
+        requisitante_id: profile.id,
+        categoria: input.area,
+        outra_categoria: outraCategoria,
+        prioridade: input.urgencia,
+        impacto: input.impacto,
+        andar: input.andar,
+        desde,
+        observacoes: input.observacoes || null,
+      })
+      .select(TICKET_SELECT)
+      .single(),
+    15_000,
+    'Inserir ticket',
+  );
+  if (error) {
+    console.error('[api] createTicket insert error:', error);
+    throw error;
+  }
+  console.log('[api] createTicket ok', { id: (data as { id?: number })?.id });
 
   return mapTicketRow(data as unknown as TicketRow);
 }
