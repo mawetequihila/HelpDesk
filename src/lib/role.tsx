@@ -41,7 +41,7 @@ function withTimeout<T>(p: PromiseLike<T>, ms: number, label: string): Promise<T
 
 async function fetchProfile(userId: string): Promise<SessionUser | null> {
   const { data, error } = await withTimeout(
-    supabase.from('profiles').select('id, nome, email, role').eq('id', userId).single(),
+    supabase.from('profiles').select('id, nome, email, role').eq('id', userId).maybeSingle(),
     10_000,
     'Carregar perfil',
   );
@@ -49,7 +49,10 @@ async function fetchProfile(userId: string): Promise<SessionUser | null> {
     console.error('[role] fetchProfile error:', error);
     return null;
   }
-  if (!data) return null;
+  if (!data) {
+    console.warn('[role] fetchProfile: sem linha em public.profiles para', userId);
+    return null;
+  }
   return data as SessionUser;
 }
 

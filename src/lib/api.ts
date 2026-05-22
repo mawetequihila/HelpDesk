@@ -148,7 +148,11 @@ interface TicketRow {
 }
 
 function mapTicketRow(row: TicketRow): StoredTicket {
-  const historico: HistoryEntry[] = [...row.historico]
+  const rawHistorico = row.historico ?? [];
+  const rawNotas = row.notas_internas ?? [];
+  const rawAval = row.avaliacoes ?? [];
+
+  const historico: HistoryEntry[] = [...rawHistorico]
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     .map((h) => ({
       data: formatDateTime(h.created_at),
@@ -158,7 +162,7 @@ function mapTicketRow(row: TicketRow): StoredTicket {
       tipo: h.tipo,
     }));
 
-  const notas: StoredNote[] = [...row.notas_internas]
+  const notas: StoredNote[] = [...rawNotas]
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     .map((n) => ({
       id: n.id,
@@ -167,7 +171,7 @@ function mapTicketRow(row: TicketRow): StoredTicket {
       autor: n.autor_nome,
     }));
 
-  const aval = row.avaliacoes[0];
+  const aval = rawAval[0];
   const avaliacao: StoredRating | undefined = aval
     ? {
         estrelas: aval.estrelas,
@@ -203,7 +207,7 @@ async function getCurrentProfile(): Promise<{ id: string; nome: string; role: st
   const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8_000, 'getUser');
   if (!user) return null;
   const { data: profile, error } = await withTimeout(
-    supabase.from('profiles').select('id, nome, role').eq('id', user.id).single(),
+    supabase.from('profiles').select('id, nome, role').eq('id', user.id).maybeSingle(),
     8_000,
     'getProfile',
   );
@@ -211,7 +215,10 @@ async function getCurrentProfile(): Promise<{ id: string; nome: string; role: st
     console.error('[api] getCurrentProfile error:', error);
     return null;
   }
-  if (!profile) return null;
+  if (!profile) {
+    console.warn('[api] getCurrentProfile: sem linha em public.profiles para user', user.id);
+    return null;
+  }
   return profile;
 }
 
