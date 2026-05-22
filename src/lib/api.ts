@@ -97,7 +97,13 @@ export interface StoredTicket {
   observacoes?: string;
   descricao?: string;
   data: string;
+  /** ISO timestamp for time-based filtering (last 30 days, etc.) */
+  createdAtISO: string;
+  /** ISO timestamp of resolution, if applicable */
+  resolvidoEmISO?: string;
   tecnico: string;
+  /** True when a técnico has been assigned, regardless of whether name is shown */
+  tecnicoAssigned: boolean;
   ultimaAtualizacao: string;
   tempo?: string;
   historico: HistoryEntry[];
@@ -195,7 +201,10 @@ function mapTicketRow(row: TicketRow): StoredTicket {
     observacoes: row.observacoes ?? undefined,
     descricao: row.observacoes ?? undefined,
     data: formatDate(row.created_at),
+    createdAtISO: row.created_at,
+    resolvidoEmISO: row.resolvido_em ?? undefined,
     tecnico: row.tecnico?.nome ?? '-',
+    tecnicoAssigned: Boolean(row.tecnico?.id),
     ultimaAtualizacao: formatRelative(row.updated_at),
     historico,
     notas,
@@ -428,7 +437,7 @@ export async function assumeTicket(id: number): Promise<void> {
     autor_id: profile.id,
     autor_nome: profile.nome,
     tipo: 'action',
-    evento: `Técnico ${profile.nome} assumiu o chamado`,
+    evento: 'Equipa de TI assumiu o chamado',
   });
 }
 

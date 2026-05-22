@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '../ui/sheet';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { useRole } from '../../../lib/role';
+import { useTicketAssumedNotifications } from '../../../lib/hooks';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -20,6 +21,9 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Notifica o funcionário sempre que a equipa de TI assume um dos seus chamados
+  useTicketAssumedNotifications(role === 'funcionario', user?.id);
 
   const displayName = user?.nome ?? 'Utilizador';
   const displayEmail = user?.email ?? '';

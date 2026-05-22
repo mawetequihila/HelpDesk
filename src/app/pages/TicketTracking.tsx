@@ -44,7 +44,7 @@ export default function TicketTracking() {
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por ID, categoria, técnico..."
+            placeholder="Buscar por ID, categoria, estado..."
             className="pl-9 bg-white border-slate-200"
           />
         </div>
@@ -110,8 +110,10 @@ export default function TicketTracking() {
                         <p className="text-sm font-semibold text-slate-800">{ticket.data}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Técnico</p>
-                        <p className="text-sm font-semibold text-slate-800">{ticket.tecnico}</p>
+                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Responsável</p>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {ticket.tecnicoAssigned ? 'Equipa de TI' : 'Aguardando'}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-1">Atualização</p>
@@ -210,7 +212,7 @@ export default function TicketTracking() {
                             </p>
                             <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 mt-0.5">
                               <User className="w-3 h-3 text-slate-400" />
-                              {item.autor}
+                              {item.autor === user?.nome ? item.autor : 'Equipa de TI'}
                             </div>
 
                             {item.mensagem && (

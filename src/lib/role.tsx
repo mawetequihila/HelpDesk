@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
+import { toast } from 'sonner';
 import { supabase } from './supabase';
 import type { Role } from './types';
 
@@ -182,6 +183,17 @@ export function RequireRole({ allow, children }: RequireRoleProps) {
   const { role, loading } = useRole();
   const location = useLocation();
   const allowed = Array.isArray(allow) ? allow : [allow];
+  const blocked = !loading && role !== null && !allowed.includes(role);
+  const warnedRef = useRef(false);
+
+  useEffect(() => {
+    if (blocked && !warnedRef.current) {
+      warnedRef.current = true;
+      toast.error('Acesso negado.', {
+        description: 'Esta área é exclusiva da equipa de TI.',
+      });
+    }
+  }, [blocked]);
 
   if (loading) {
     return (

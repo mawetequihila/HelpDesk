@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  Bell, TrendingUp, TrendingDown, Clock, AlertTriangle, CheckCircle2,
+  Bell, Clock, AlertTriangle, CheckCircle2,
   AlertCircle, Hourglass, List, LayoutDashboard, Search,
-  BarChart3, PieChart, Monitor,
+  BarChart3, PieChart, Monitor, CalendarRange,
   Wrench, Lightbulb,
   type LucideIcon
 } from 'lucide-react';
@@ -16,32 +16,55 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
-import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Progress } from '../components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
-import { recurrentProblems, weeklyData, categoryData } from '../../data/mock';
-import { useTickets } from '../../lib/hooks';
+import { recurrentProblems } from '../../data/mock';
+import { useTickets, useNewTicketNotifications } from '../../lib/hooks';
 import { getPriorityStyle, getStatusStyle } from '../../lib/tickets';
-import type { RecurrentProblem, Status } from '../../lib/types';
+import type { RecurrentProblem, Status, Category } from '../../lib/types';
 import type { StoredTicket } from '../../lib/api';
 
 interface Metric {
   label: string;
   value: number;
-  trend: 'up' | 'down';
-  change: string;
+  hint: string;
   icon: LucideIcon;
   iconBg: string;
   iconText: string;
 }
 
-const metrics: Metric[] = [
-  { label: 'Abertos', value: 24, trend: 'up', change: '+12%', icon: AlertTriangle, iconBg: 'bg-brand-soft', iconText: 'text-brand-dark' },
-  { label: 'Em andamento', value: 18, trend: 'up', change: '+5%', icon: Hourglass, iconBg: 'bg-amber-50', iconText: 'text-amber-600' },
-  { label: 'Resolvidos hoje', value: 32, trend: 'up', change: '+8%', icon: CheckCircle2, iconBg: 'bg-emerald-50', iconText: 'text-emerald-600' },
-  { label: 'Críticos', value: 3, trend: 'down', change: '-2', icon: AlertCircle, iconBg: 'bg-rose-50', iconText: 'text-rose-600' },
-];
+const CATEGORY_COLOR: Record<Category, string> = {
+  Computador: '#0D3B66',
+  Rede: '#0077B6',
+  Impressora: '#f59e0b',
+  'Acesso/Senha': '#10b981',
+  Telefone: '#ef4444',
+  Outro: '#94a3b8',
+};
+
+function isWithinLastDays(iso: string, days: number): boolean {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t <= days * 24 * 60 * 60 * 1000;
+}
+
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
+function formatHours(hours: number): string {
+  if (!Number.isFinite(hours) || hours <= 0) return '—';
+  if (hours < 1) return `${Math.round(hours * 60)} min`;
+  if (hours < 24) return `${hours.toFixed(1)} h`;
+  return `${(hours / 24).toFixed(1)} dias`;
+}
 
 const tooltipStyle = {
   borderRadius: 12, border: '1px solid #e2e8f0', background: '#fff',
@@ -54,6 +77,9 @@ export default function ITDashboard() {
   const [selectedProblemInfo, setSelectedProblemInfo] = useState<RecurrentProblem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Toast + som sempre que entra um chamado novo em qualquer cliente
+  useNewTicketNotifications(true);
+
   const filteredTickets = useTickets({
     statusIn: ['Aberto', 'Em andamento', 'Aguardando'],
     search: searchQuery,
@@ -61,6 +87,8 @@ export default function ITDashboard() {
   const allActiveForAlerts = useTickets({
     statusIn: ['Aberto', 'Em andamento', 'Aguardando'],
   });
+  // Todos os tickets (sem filtro de estado) — usado para métricas reais
+  const allTickets = useTickets({});
 
   const kanbanColumns: Record<Status, StoredTicket[]> = {
     Aberto: filteredTickets.filter((t) => t.status === 'Aberto'),
@@ -73,6 +101,96 @@ export default function ITDashboard() {
   const criticalTickets = allActiveForAlerts.filter(
     (t) => t.prioridade === 'Crítica' && t.status === 'Aberto',
   );
+
+  // -------------------- Métricas reais (calculadas a partir dos tickets) --------------------
+  const metrics: Metric[] = useMemo(() => {
+    const abertos = allTickets.filter((t) => t.status === 'Aberto').length;
+    const emAndamento = allTickets.filter((t) => t.status === 'Em andamento').length;
+    const resolvidosHoje = allTickets.filter(
+      (t) => (t.status === 'Resolvido' || t.status === 'Encerrado') && t.resolvidoEmISO && isToday(t.resolvidoEmISO),
+    ).length;
+    const criticos = allTickets.filter(
+      (t) => t.prioridade === 'Crítica' && t.status !== 'Encerrado' && t.status !== 'Resolvido',
+    ).length;
+    return [
+      { label: 'Abertos', value: abertos, hint: 'Sem técnico ainda', icon: AlertTriangle, iconBg: 'bg-brand-soft', iconText: 'text-brand-dark' },
+      { label: 'Em andamento', value: emAndamento, hint: 'Em análise activa', icon: Hourglass, iconBg: 'bg-amber-50', iconText: 'text-amber-600' },
+      { label: 'Resolvidos hoje', value: resolvidosHoje, hint: 'Fechados nas últimas 24h', icon: CheckCircle2, iconBg: 'bg-emerald-50', iconText: 'text-emerald-600' },
+      { label: 'Críticos', value: criticos, hint: 'Prioridade máxima', icon: AlertCircle, iconBg: 'bg-rose-50', iconText: 'text-rose-600' },
+    ];
+  }, [allTickets]);
+
+  // -------------------- Distribuição por categoria (tickets recentes — 30 dias) --------------------
+  const categoryData = useMemo(() => {
+    const last30 = allTickets.filter((t) => isWithinLastDays(t.createdAtISO, 30));
+    const totals = last30.reduce<Record<string, number>>((acc, t) => {
+      acc[t.categoria] = (acc[t.categoria] ?? 0) + 1;
+      return acc;
+    }, {});
+    const total = last30.length || 1;
+    const cats: Category[] = ['Computador', 'Rede', 'Impressora', 'Acesso/Senha', 'Telefone', 'Outro'];
+    return cats
+      .map((name) => ({
+        name,
+        count: totals[name] ?? 0,
+        value: Math.round(((totals[name] ?? 0) / total) * 100),
+        color: CATEGORY_COLOR[name],
+      }))
+      .filter((c) => c.count > 0);
+  }, [allTickets]);
+
+  // -------------------- Tendência semanal (últimos 7 dias) --------------------
+  const weeklyData = useMemo(() => {
+    const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const result: Array<{ name: string; abertos: number; resolvidos: number }> = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+      const start = d.getTime();
+      const end = start + 24 * 60 * 60 * 1000;
+      const abertos = allTickets.filter((t) => {
+        const ms = new Date(t.createdAtISO).getTime();
+        return ms >= start && ms < end;
+      }).length;
+      const resolvidos = allTickets.filter((t) => {
+        if (!t.resolvidoEmISO) return false;
+        const ms = new Date(t.resolvidoEmISO).getTime();
+        return ms >= start && ms < end;
+      }).length;
+      result.push({ name: dayNames[d.getDay()], abertos, resolvidos });
+    }
+    return result;
+  }, [allTickets]);
+
+  // -------------------- Relatório 30 dias --------------------
+  const report30d = useMemo(() => {
+    const last30 = allTickets.filter((t) => isWithinLastDays(t.createdAtISO, 30));
+    const resolvidos30d = last30.filter((t) => t.resolvidoEmISO);
+    // Tempo médio de resolução em horas
+    const resolutionHours = resolvidos30d
+      .map((t) => {
+        const created = new Date(t.createdAtISO).getTime();
+        const resolved = new Date(t.resolvidoEmISO!).getTime();
+        return (resolved - created) / 3_600_000;
+      })
+      .filter((h) => h > 0);
+    const avgHours =
+      resolutionHours.length === 0
+        ? 0
+        : resolutionHours.reduce((a, b) => a + b, 0) / resolutionHours.length;
+    const taxaResolucao = last30.length === 0 ? 0 : Math.round((resolvidos30d.length / last30.length) * 100);
+    const topCategoria =
+      categoryData.length > 0 ? [...categoryData].sort((a, b) => b.count - a.count)[0] : null;
+    return {
+      total: last30.length,
+      resolvidos: resolvidos30d.length,
+      emAberto: last30.length - resolvidos30d.length,
+      avgHours,
+      taxaResolucao,
+      topCategoria,
+    };
+  }, [allTickets, categoryData]);
 
   return (
     <div className="pb-12 space-y-8">
@@ -163,8 +281,15 @@ export default function ITDashboard() {
           <div className="space-y-1">
             <CardTitle className="text-xl flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-brand" /> Chamados Activos
+              <span className="inline-flex items-center gap-1.5 ml-2 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">
+                <span className="relative flex w-2 h-2">
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                  <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-500" />
+                </span>
+                Ao vivo
+              </span>
             </CardTitle>
-            <CardDescription>Veja imediatamente quem precisa de ajuda.</CardDescription>
+            <CardDescription>Veja imediatamente quem precisa de ajuda. Atualiza em tempo real.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center p-1 bg-slate-100 rounded-lg">
@@ -234,7 +359,11 @@ export default function ITDashboard() {
                             <p className="font-medium text-sm text-slate-900 mb-3">{t.nome}</p>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-md"><Clock className="w-3 h-3 mr-1" />{t.tempo}</div>
-                              {t.tecnico !== '-' && <Avatar className="w-6 h-6 border border-slate-200"><AvatarFallback className="text-[10px] bg-brand/15 text-brand-dark">{t.tecnico.substring(0, 2)}</AvatarFallback></Avatar>}
+                              {t.tecnicoAssigned && (
+                                <span className="text-[10px] font-medium text-brand-dark bg-brand-soft px-2 py-0.5 rounded-full">
+                                  {t.tecnico}
+                                </span>
+                              )}
                             </div>
                           </CardContent>
                         </Card>
@@ -261,22 +390,60 @@ export default function ITDashboard() {
           return (
             <Card key={m.label} className="border-0 shadow-sm overflow-hidden">
               <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`p-3 rounded-xl ${m.iconBg} ${m.iconText}`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <Badge variant="secondary" className={`${m.trend === 'up' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'} border-0`}>
-                    {m.trend === 'up' ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                    {m.change}
-                  </Badge>
+                <div className={`p-3 rounded-xl ${m.iconBg} ${m.iconText} inline-flex mb-4`}>
+                  <Icon className="w-5 h-5" />
                 </div>
                 <h3 className="text-3xl font-bold tracking-tight text-slate-900">{m.value}</h3>
-                <p className="text-sm font-medium text-slate-500 mt-1">{m.label}</p>
+                <p className="text-sm font-medium text-slate-700 mt-1">{m.label}</p>
+                <p className="text-xs text-slate-400 mt-0.5">{m.hint}</p>
               </CardContent>
             </Card>
           );
         })}
       </div>
+
+      {/* 30-Day Report */}
+      <Card className="border-slate-200/60 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-xl flex items-center gap-2">
+            <CalendarRange className="w-5 h-5 text-brand" /> Relatório dos Últimos 30 Dias
+          </CardTitle>
+          <CardDescription>Visão consolidada dos chamados nos últimos 30 dias.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl bg-brand-soft/40 border border-brand/15">
+              <p className="text-[11px] text-brand-dark uppercase tracking-wider font-semibold mb-1">Total aberto</p>
+              <p className="text-2xl font-bold text-slate-900">{report30d.total}</p>
+              <p className="text-xs text-slate-500 mt-1">Chamados criados</p>
+            </div>
+            <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100">
+              <p className="text-[11px] text-emerald-700 uppercase tracking-wider font-semibold mb-1">Resolvidos</p>
+              <p className="text-2xl font-bold text-slate-900">{report30d.resolvidos}</p>
+              <p className="text-xs text-slate-500 mt-1">Taxa: {report30d.taxaResolucao}%</p>
+            </div>
+            <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100">
+              <p className="text-[11px] text-amber-700 uppercase tracking-wider font-semibold mb-1">Tempo médio</p>
+              <p className="text-2xl font-bold text-slate-900">{formatHours(report30d.avgHours)}</p>
+              <p className="text-xs text-slate-500 mt-1">Para resolução</p>
+            </div>
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <p className="text-[11px] text-slate-600 uppercase tracking-wider font-semibold mb-1">Categoria top</p>
+              <p className="text-lg font-bold text-slate-900 truncate">
+                {report30d.topCategoria?.name ?? '—'}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {report30d.topCategoria ? `${report30d.topCategoria.count} chamados` : 'Sem dados'}
+              </p>
+            </div>
+          </div>
+          {report30d.total === 0 && (
+            <p className="text-center text-sm text-slate-400 py-6">
+              Ainda não há chamados nos últimos 30 dias.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
