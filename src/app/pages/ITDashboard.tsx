@@ -113,7 +113,7 @@ export default function ITDashboard() {
       (t) => t.prioridade === 'Crítica' && t.status !== 'Encerrado' && t.status !== 'Resolvido',
     ).length;
     return [
-      { label: 'Abertos', value: abertos, hint: 'Sem técnico ainda', icon: AlertTriangle, iconBg: 'bg-brand-soft', iconText: 'text-brand-dark' },
+      { label: 'Abertos', value: abertos, hint: 'Sem responsável ainda', icon: AlertTriangle, iconBg: 'bg-brand-soft', iconText: 'text-brand-dark' },
       { label: 'Em andamento', value: emAndamento, hint: 'Em análise activa', icon: Hourglass, iconBg: 'bg-amber-50', iconText: 'text-amber-600' },
       { label: 'Resolvidos hoje', value: resolvidosHoje, hint: 'Fechados nas últimas 24h', icon: CheckCircle2, iconBg: 'bg-emerald-50', iconText: 'text-emerald-600' },
       { label: 'Críticos', value: criticos, hint: 'Prioridade máxima', icon: AlertCircle, iconBg: 'bg-rose-50', iconText: 'text-rose-600' },
@@ -314,8 +314,7 @@ export default function ITDashboard() {
                     <TableHead>Requisitante</TableHead>
                     <TableHead>Prioridade</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead>Tempo</TableHead>
-                    <TableHead className="text-right">Técnico</TableHead>
+                    <TableHead className="text-right">Tempo</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -330,8 +329,7 @@ export default function ITDashboard() {
                       </TableCell>
                       <TableCell><Badge className={`${getPriorityStyle(t.prioridade).badge} border-0`}>{t.prioridade}</Badge></TableCell>
                       <TableCell><Badge className={`${getStatusStyle(t.status).badge} border-0`}>{t.status}</Badge></TableCell>
-                      <TableCell><div className="flex items-center text-slate-500 text-sm"><Clock className="w-3.5 h-3.5 mr-1" />{t.tempo}</div></TableCell>
-                      <TableCell className="text-right">{t.tecnico !== '-' ? <span className="text-sm font-medium text-slate-700">{t.tecnico}</span> : <span className="text-sm text-slate-400">Não atribuído</span>}</TableCell>
+                      <TableCell className="text-right"><div className="flex items-center justify-end text-slate-500 text-sm"><Clock className="w-3.5 h-3.5 mr-1" />{t.tempo}</div></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -361,7 +359,7 @@ export default function ITDashboard() {
                               <div className="flex items-center text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-md"><Clock className="w-3 h-3 mr-1" />{t.tempo}</div>
                               {t.tecnicoAssigned && (
                                 <span className="text-[10px] font-medium text-brand-dark bg-brand-soft px-2 py-0.5 rounded-full">
-                                  {t.tecnico}
+                                  Em análise
                                 </span>
                               )}
                             </div>
@@ -582,12 +580,6 @@ export default function ITDashboard() {
                         <span className="text-xs font-bold text-slate-400">#{idx + 1}</span>
                         <span className="font-semibold text-slate-800 text-sm">Chamado #{caso.id}</span>
                         <span className="text-xs text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full">Resolvido em {caso.data}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-brand to-brand-dark flex items-center justify-center text-white text-[9px] font-bold">
-                          {caso.tecnico.substring(0, 2)}
-                        </div>
-                        {caso.tecnico}
                       </div>
                     </div>
 

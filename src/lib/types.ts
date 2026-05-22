@@ -20,32 +20,9 @@ export interface HistoryEntry {
   tipo?: 'system' | 'action' | 'message';
 }
 
-export interface Ticket {
-  id: number;
-  nome: string;
-  email?: string;
-  telefone?: string;
-  departamento: string;
-  andar: Building;
-  categoria: Category;
-  detalhes?: string;
-  prioridade: Priority;
-  status: Status;
-  impacto?: Impact;
-  desde?: string;
-  observacoes?: string;
-  data: string;
-  tecnico: string;
-  ultimaAtualizacao: string;
-  tempo?: string;
-  descricao?: string;
-  historico: HistoryEntry[];
-}
-
 export interface KbCase {
   id: number;
   data: string;
-  tecnico: string;
   solucao: string;
   materiais: string;
 }

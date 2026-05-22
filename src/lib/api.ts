@@ -266,7 +266,7 @@ export async function listTickets(params: ListTicketsParams = {}): Promise<Store
     tickets = tickets.filter((t) => {
       const haystack = [
         String(t.id), t.nome, t.email ?? '', t.categoria, t.status,
-        t.prioridade, t.tecnico, t.descricao ?? '', t.departamento,
+        t.prioridade, t.descricao ?? '', t.departamento,
       ].join(' ').toLowerCase();
       return haystack.includes(q);
     });
@@ -461,7 +461,7 @@ export async function changeStatus(id: number, next: Status): Promise<void> {
 export async function sendMessage(id: number, mensagem: string): Promise<void> {
   const profile = await getCurrentProfile();
   if (!profile) throw new Error('Sem sessão.');
-  const evento = profile.role === 'ti' ? 'Mensagem ao funcionário' : 'Mensagem ao técnico';
+  const evento = profile.role === 'ti' ? 'Mensagem ao funcionário' : 'Mensagem para a equipa de TI';
   const { error } = await supabase.from('historico').insert({
     ticket_id: id,
     autor_id: profile.id,

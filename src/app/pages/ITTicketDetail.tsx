@@ -95,7 +95,7 @@ export default function ITTicketDetail() {
 
   const handleAssumir = () => {
     if (tecnicoAssigned) {
-      toast.info(`Já está atribuído a ${ticket.tecnico}.`);
+      toast.info('Este chamado já está em análise pela equipa.');
       return;
     }
     wrap(async () => {
@@ -355,7 +355,7 @@ export default function ITTicketDetail() {
                 disabled={tecnicoAssigned || busy}
                 className="w-full bg-brand-dark hover:bg-brand-darker disabled:opacity-60"
               >
-                <User className="w-4 h-4 mr-2" /> {tecnicoAssigned ? `Atribuído a ${ticket.tecnico}` : 'Assumir Chamado'}
+                <User className="w-4 h-4 mr-2" /> {tecnicoAssigned ? 'Em análise pela equipa' : 'Assumir Chamado'}
               </Button>
 
               <div className="space-y-1.5">
@@ -397,7 +397,7 @@ export default function ITTicketDetail() {
               {[
                 { label: 'Criado em', value: createdAt },
                 { label: 'Última atualização', value: ticket.ultimaAtualizacao },
-                { label: 'Técnico', value: tecnicoAssigned ? ticket.tecnico : 'Não atribuído', color: tecnicoAssigned ? 'text-slate-900' : 'text-slate-400' },
+                { label: 'Estado', value: tecnicoAssigned ? 'Em análise' : 'Aguardando', color: tecnicoAssigned ? 'text-slate-900' : 'text-slate-400' },
               ].map((item, i) => (
                 <div key={i} className="flex justify-between items-center">
                   <span className="text-slate-500">{item.label}</span>
