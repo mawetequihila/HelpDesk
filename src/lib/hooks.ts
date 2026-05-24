@@ -65,16 +65,24 @@ export function useTickets(params: api.ListTicketsParams = {}): StoredTicket[] {
   return tickets;
 }
 
-export function useTicketById(id: number | undefined | null): StoredTicket | undefined {
+export interface UseTicketByIdResult {
+  ticket: StoredTicket | undefined;
+  loading: boolean;
+}
+
+export function useTicketById(id: number | undefined | null): UseTicketByIdResult {
   const [ticket, setTicket] = useState<StoredTicket | undefined>(undefined);
+  const [loading, setLoading] = useState<boolean>(id != null);
 
   useEffect(() => {
     if (id == null) {
       setTicket(undefined);
+      setLoading(false);
       return;
     }
 
     let mounted = true;
+    setLoading(true);
 
     const refetch = async () => {
       try {
@@ -82,6 +90,8 @@ export function useTicketById(id: number | undefined | null): StoredTicket | und
         if (mounted) setTicket(data);
       } catch (err) {
         console.error('useTicketById refetch failed', err);
+      } finally {
+        if (mounted) setLoading(false);
       }
     };
 
@@ -94,7 +104,7 @@ export function useTicketById(id: number | undefined | null): StoredTicket | und
     };
   }, [id]);
 
-  return ticket;
+  return { ticket, loading };
 }
 
 export function useSessionUser(): SessionUser | null {

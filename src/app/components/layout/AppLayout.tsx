@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
-import { PlusCircle, List, LayoutDashboard, Menu, UserCircle, Settings, LogOut, ChevronUp, Moon, Sun, Monitor as MonitorIcon } from 'lucide-react';
+import { PlusCircle, List, LayoutDashboard, Menu, LogOut, ChevronUp, Moon, Sun, Monitor as MonitorIcon } from 'lucide-react';
 import { Logo } from './Logo';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from 'next-themes';
@@ -102,12 +102,6 @@ export function AppLayout({ children }: AppLayoutProps) {
           <DropdownMenuContent align="end" className="w-56" sideOffset={8}>
             <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
-              <UserCircle className="w-4 h-4 mr-2 text-slate-500" /> Perfil
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
-              <Settings className="w-4 h-4 mr-2 text-slate-500" /> Configurações
-            </DropdownMenuItem>
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="cursor-pointer">
                 {mounted && theme === 'dark' ? (

@@ -206,6 +206,7 @@ function mapTicketRow(row: TicketRow): StoredTicket {
     tecnico: row.tecnico?.nome ?? '-',
     tecnicoAssigned: Boolean(row.tecnico?.id),
     ultimaAtualizacao: formatRelative(row.updated_at),
+    tempo: formatRelative(row.created_at),
     historico,
     notas,
     avaliacao,

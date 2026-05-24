@@ -39,7 +39,7 @@ export default function TicketConfirmation() {
   const { ticketId } = useParams();
   const navigate = useNavigate();
   const idNum = ticketId ? Number(ticketId) : undefined;
-  const ticket = useTicketById(idNum);
+  const { ticket } = useTicketById(idNum);
 
   const { states, progressPct } = useMemo(() => stepStatesFor(ticket?.status), [ticket?.status]);
 

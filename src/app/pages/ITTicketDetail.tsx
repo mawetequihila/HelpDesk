@@ -46,7 +46,7 @@ export default function ITTicketDetail() {
   const { ticketId } = useParams();
   const navigate = useNavigate();
   const idNum = ticketId ? Number(ticketId) : NaN;
-  const ticket = useTicketById(Number.isFinite(idNum) ? idNum : null);
+  const { ticket, loading } = useTicketById(Number.isFinite(idNum) ? idNum : null);
 
   const [message, setMessage] = useState('');
   const [internalNote, setInternalNote] = useState('');
@@ -61,6 +61,15 @@ export default function ITTicketDetail() {
     acaoPreventiva: '',
     tempoGasto: '',
   });
+
+  if (loading) {
+    return (
+      <div className="pb-12 flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="w-10 h-10 border-2 border-brand/30 border-t-brand rounded-full animate-spin mb-3" />
+        <p className="text-sm text-slate-500">A carregar chamado #{ticketId}...</p>
+      </div>
+    );
+  }
 
   if (!ticket) {
     return (

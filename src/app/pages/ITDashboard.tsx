@@ -304,7 +304,19 @@ export default function ITDashboard() {
         </CardHeader>
         <CardContent>
           {filteredTickets.length === 0 ? (
-            <p className="text-center text-sm text-slate-400 py-10">Sem chamados para os critérios actuais.</p>
+            <div className="text-center py-10 px-4">
+              <p className="text-sm font-medium text-slate-600 mb-1">
+                {searchQuery ? `Sem resultados para "${searchQuery}"` : 'Sem chamados activos'}
+              </p>
+              <p className="text-xs text-slate-400">
+                {searchQuery ? 'Tenta outro termo de busca.' : 'Quando houver novos chamados aparecem aqui em tempo real.'}
+              </p>
+              {searchQuery && (
+                <Button variant="ghost" size="sm" onClick={() => setSearchQuery('')} className="mt-3">
+                  Limpar busca
+                </Button>
+              )}
+            </div>
           ) : viewMode === 'lista' ? (
             <div className="rounded-md border border-slate-200 overflow-hidden">
               <Table>

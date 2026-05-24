@@ -30,7 +30,7 @@ export default function TicketTracking() {
     ownedByEmail: user?.email,
     search: searchQuery,
   });
-  const selectedTicketData = useTicketById(selectedTicket);
+  const { ticket: selectedTicketData, loading: selectedLoading } = useTicketById(selectedTicket);
 
   return (
     <div className="pb-12 h-full flex flex-col">
@@ -58,13 +58,21 @@ export default function TicketTracking() {
               <div className="w-14 h-14 mx-auto bg-slate-100 rounded-full flex items-center justify-center mb-4">
                 <Inbox className="w-7 h-7 text-slate-400" />
               </div>
-              <p className="font-semibold text-slate-700">Sem resultados</p>
-              <p className="text-sm text-slate-500 mt-1">
-                {searchQuery ? 'Tente outro termo de busca.' : 'Ainda não há chamados para acompanhar.'}
+              <p className="font-semibold text-slate-700">
+                {searchQuery ? 'Sem resultados para esta busca' : 'Ainda não tens chamados abertos'}
               </p>
-              {searchQuery && (
+              <p className="text-sm text-slate-500 mt-1">
+                {searchQuery
+                  ? `Nenhum chamado corresponde a "${searchQuery}". Tenta outro termo.`
+                  : 'Abre o teu primeiro chamado para acompanhares aqui.'}
+              </p>
+              {searchQuery ? (
                 <Button variant="ghost" size="sm" onClick={() => setSearchQuery('')} className="mt-3">
                   Limpar busca
+                </Button>
+              ) : (
+                <Button size="sm" onClick={() => navigate('/abrir-chamado')} className="mt-3 bg-brand-dark hover:bg-brand-darker">
+                  Abrir chamado
                 </Button>
               )}
             </div>
@@ -129,6 +137,16 @@ export default function TicketTracking() {
             })
           )}
         </div>
+
+        {/* Selected Ticket Details Panel — loading state */}
+        {selectedTicket && selectedLoading && !selectedTicketData && (
+          <div className="lg:w-1/2 flex-shrink-0 w-full">
+            <Card className="border-slate-200/60 shadow-lg bg-white p-12 flex flex-col items-center justify-center min-h-[200px]">
+              <div className="w-8 h-8 border-2 border-brand/30 border-t-brand rounded-full animate-spin mb-3" />
+              <p className="text-sm text-slate-500">A carregar chamado #{selectedTicket}...</p>
+            </Card>
+          </div>
+        )}
 
         {/* Selected Ticket Details Panel */}
         <AnimatePresence mode="wait">

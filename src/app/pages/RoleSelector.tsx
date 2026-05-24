@@ -70,11 +70,12 @@ export default function RoleSelector() {
       navigate(href);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Falha no login.';
-      toast.error('Não foi possível entrar.', {
-        description: msg.includes('Invalid login')
-          ? 'Verifica se as contas demo foram criadas no Supabase Studio.'
-          : msg,
-      });
+      const friendly = msg.includes('Invalid login')
+        ? 'Credenciais incorrectas. Contacta a equipa de TI se o problema persistir.'
+        : msg.includes('Network')
+        ? 'Sem ligação ao servidor. Verifica a tua internet.'
+        : 'Não foi possível concluir o login. Tenta de novo em instantes.';
+      toast.error('Não foi possível entrar.', { description: friendly });
     } finally {
       setPending(null);
     }

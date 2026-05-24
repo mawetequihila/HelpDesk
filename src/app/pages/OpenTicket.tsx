@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  UploadCloud,
   CheckCircle2,
   AlertTriangle,
   Monitor,
@@ -122,17 +121,18 @@ export default function OpenTicket() {
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setFormData((prev) => ({ ...prev, [key]: value }));
 
-  const isValid =
-    formData.nome.trim() &&
-    formData.email.trim() &&
-    formData.departamento &&
-    (formData.departamento !== 'Outro' || formData.outroDepartamento.trim()) &&
-    formData.andar &&
-    formData.urgencia &&
-    formData.area &&
-    (formData.area !== 'Outro' || formData.outraArea.trim()) &&
-    formData.desde &&
-    formData.impacto;
+  const missing: string[] = [];
+  if (!formData.nome.trim()) missing.push('nome');
+  if (!formData.email.trim()) missing.push('email');
+  if (!formData.departamento) missing.push('departamento');
+  else if (formData.departamento === 'Outro' && !formData.outroDepartamento.trim()) missing.push('departamento');
+  if (!formData.andar) missing.push('localização');
+  if (!formData.urgencia) missing.push('urgência');
+  if (!formData.area) missing.push('área');
+  else if (formData.area === 'Outro' && !formData.outraArea.trim()) missing.push('área');
+  if (!formData.desde) missing.push('desde quando');
+  if (!formData.impacto) missing.push('impacto');
+  const isValid = missing.length === 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -406,23 +406,15 @@ export default function OpenTicket() {
                 placeholder="Conte-nos com mais detalhes o que está a acontecer..."
               />
             </div>
-
-            <label className="border-2 border-dashed border-slate-200 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors cursor-pointer group block">
-              <input type="file" multiple className="sr-only" />
-              <div className="bg-brand-soft w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-brand/15 transition-colors">
-                <UploadCloud className="w-6 h-6 text-brand-dark" />
-              </div>
-              <p className="text-sm font-medium text-slate-700">
-                Clique para anexar ou arraste arquivos <span className="text-slate-400 font-normal ml-1">(Opcional)</span>
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                Screenshots ou documentos (máx. 10MB)
-              </p>
-            </label>
           </CardContent>
         </Card>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex flex-col items-end gap-2 pt-4">
+          {!isValid && missing.length > 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Falta preencher: <strong>{missing.join(', ')}</strong>
+            </p>
+          )}
           <Button
             type="submit"
             size="lg"
