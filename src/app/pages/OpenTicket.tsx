@@ -22,6 +22,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Button } from '../components/ui/button';
 import { createTicket } from '../../lib/api';
 import type { Building as BuildingType, Category, Impact, Priority } from '../../lib/types';
+import { EmployeeAutocomplete } from '../components/EmployeeAutocomplete';
 
 interface OptionCardProps {
   groupId: string;
@@ -182,13 +183,15 @@ export default function OpenTicket() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome Completo</Label>
-                <Input
+                <EmployeeAutocomplete
                   id="nome"
                   required
-                  placeholder="O seu nome completo"
+                  placeholder="Começa a escrever o teu nome..."
                   value={formData.nome}
-                  onChange={(e) => update('nome', e.target.value)}
-                  className="bg-slate-50 border-slate-200 h-11"
+                  onChange={(v) => update('nome', v)}
+                  onSelectEmployee={(emp) => {
+                    setFormData((prev) => ({ ...prev, nome: emp.nome, email: emp.email }));
+                  }}
                 />
               </div>
               <div className="space-y-2">
@@ -197,7 +200,7 @@ export default function OpenTicket() {
                   id="email"
                   type="email"
                   required
-                  placeholder="seu.email@empresa.com"
+                  placeholder="seu.email@ggpen.gov.ao"
                   value={formData.email}
                   onChange={(e) => update('email', e.target.value)}
                   className="bg-slate-50 border-slate-200 h-11"
