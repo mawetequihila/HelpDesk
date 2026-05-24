@@ -4,7 +4,9 @@ import { ThemeProvider } from 'next-themes';
 import { AppLayout } from './components/layout/AppLayout';
 import { TooltipProvider } from './components/ui/tooltip';
 import { Toaster } from './components/ui/sonner';
+import { VoiceControl } from './components/VoiceControl';
 import { RequireRole, RoleProvider } from '../lib/role';
+import { VoiceProvider } from '../lib/voice';
 
 const OpenTicket = lazy(() => import('./pages/OpenTicket'));
 const TicketConfirmation = lazy(() => import('./pages/TicketConfirmation'));
@@ -100,7 +102,10 @@ export default function App() {
       <TooltipProvider delayDuration={300}>
         <RoleProvider>
           <BrowserRouter>
-            <AppRoutes />
+            <VoiceProvider>
+              <AppRoutes />
+              <VoiceControl />
+            </VoiceProvider>
           </BrowserRouter>
         </RoleProvider>
         <Toaster position="top-right" richColors />
