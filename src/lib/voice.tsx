@@ -136,7 +136,7 @@ interface VoiceProviderProps {
 
 export function VoiceProvider({ children }: VoiceProviderProps) {
   const navigate = useNavigate();
-  const { role, signOut } = useRole();
+  const { role, signInAs, signOut } = useRole();
   const roleRef = useRef(role);
   roleRef.current = role;
 
@@ -158,11 +158,73 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   // -------- Command dispatcher --------
 
   const executeCommand = useCallback(
-    (raw: string) => {
+    async (raw: string) => {
       const cmd = stripWakeWord(raw);
       if (!cmd) {
         toast.info('Diz o comando depois de "helpdesk".', {
-          description: 'Ex.: "helpdesk abrir chamado", "helpdesk meus chamados", "helpdesk sair".',
+          description: roleRef.current
+            ? 'Ex.: "helpdesk abrir chamado", "helpdesk painel", "helpdesk sair".'
+            : 'Ex.: "helpdesk entrar funcionário", "helpdesk entrar admin".',
+        });
+        return;
+      }
+
+      // ----- Comandos de LOGIN (funcionam sem sessão) -----
+      // Funcionário: "entrar funcionário", "login funcionário", "perfil funcionário", "como funcionário"
+      if (/(entrar|login|acessar|aceder|abrir|perfil|como|sou).*funcionari|^funcionari/.test(cmd)) {
+        if (roleRef.current === 'funcionario') {
+          toast.info('Já estás como funcionário.');
+          navigate('/abrir-chamado');
+          return;
+        }
+        try {
+          toast.info('A entrar como funcionário...');
+          await signInAs('funcionario');
+          navigate('/abrir-chamado');
+          toast.success('Bem-vindo, funcionário.');
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Falha no login.';
+          toast.error('Não foi possível entrar como funcionário.', { description: msg });
+        }
+        return;
+      }
+      // TI/Admin: "entrar TI", "entrar admin", "login admin", "perfil admin", "sou admin"
+      if (/(entrar|login|acessar|aceder|abrir|perfil|como|sou).*(ti|admin|administrador|tecnico)|^(admin|administrador)/.test(cmd)) {
+        if (roleRef.current === 'ti') {
+          toast.info('Já estás como TI.');
+          navigate('/admin/dashboard');
+          return;
+        }
+        try {
+          toast.info('A entrar como TI...');
+          await signInAs('ti');
+          navigate('/admin/dashboard');
+          toast.success('Bem-vindo à equipa de TI.');
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Falha no login.';
+          toast.error('Não foi possível entrar como TI.', { description: msg });
+        }
+        return;
+      }
+
+      // ----- Ajuda (funciona sempre) -----
+      if (/ajuda|comand|help|o que/.test(cmd)) {
+        toast.info('Comandos de voz', {
+          description: roleRef.current === 'ti'
+            ? '"painel", "ver chamados", "voltar", "sair"'
+            : roleRef.current === 'funcionario'
+            ? '"abrir chamado", "meus chamados", "voltar", "sair"'
+            : '"entrar funcionário", "entrar admin", "ajuda"',
+          duration: 8000,
+        });
+        return;
+      }
+
+      // ----- Comandos que precisam de sessão -----
+      if (!roleRef.current) {
+        toast.info('Inicia sessão primeiro.', {
+          description: 'Diz "helpdesk entrar funcionário" ou "helpdesk entrar admin".',
+          duration: 6000,
         });
         return;
       }
@@ -188,7 +250,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
 
       // Navegação TI
-      if (/painel|dashboard|administrac|admin/.test(cmd)) {
+      if (/painel|dashboard|administrac/.test(cmd)) {
         if (roleRef.current !== 'ti') {
           toast.error('Painel TI só para a equipa.');
           return;
@@ -200,8 +262,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       // Logout
       if (/sair|logout|terminar.*sessao|sign out/.test(cmd)) {
-        signOut().then(() => navigate('/', { replace: true }));
-        toast.info('A terminar sessão.');
+        await signOut();
+        navigate('/', { replace: true });
+        toast.info('Sessão terminada.');
         return;
       }
 
@@ -212,23 +275,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         return;
       }
 
-      // Ajuda
-      if (/ajuda|comand|help|o que/.test(cmd)) {
-        toast.info('Comandos de voz disponíveis', {
-          description:
-            roleRef.current === 'ti'
-              ? '"painel", "ver chamados", "voltar", "sair"'
-              : '"abrir chamado", "meus chamados", "voltar", "sair"',
-          duration: 8000,
-        });
-        return;
-      }
-
       toast.error(`Não reconheci: "${cmd}"`, {
         description: 'Diz "helpdesk ajuda" para ver os comandos.',
       });
     },
-    [navigate, signOut],
+    [navigate, signInAs, signOut],
   );
 
   // -------- Recogniton lifecycle --------
@@ -423,7 +474,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setError(null);
     startRecognition();
     toast.success('Comandos de voz activados.', {
-      description: 'Diz "helpdesk" e depois o comando. Ex.: "helpdesk abrir chamado".',
+      description: roleRef.current
+        ? 'Diz "helpdesk" e depois o comando. Ex.: "helpdesk abrir chamado".'
+        : 'Diz "helpdesk entrar funcionário" ou "helpdesk entrar admin".',
       duration: 6000,
     });
   }, [supported, clearCommandTimer, stopRecognition, startRecognition]);
