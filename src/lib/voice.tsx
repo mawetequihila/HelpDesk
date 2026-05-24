@@ -365,16 +365,59 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       toast.info('Comandos de voz desactivados.');
       return;
     }
-    // Pede permissão de mic primeiro (resolve antes do start)
+
+    // Antes de pedir o mic, verifica o estado actual da permissão.
+    // Se já está 'denied' o browser nem mostra o prompt — dá erro silencioso.
     try {
-      await navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-        // libertamos imediatamente — só queríamos a permissão
-        stream.getTracks().forEach((t) => t.stop());
-      });
+      if (navigator.permissions && navigator.permissions.query) {
+        const status = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        if (status.state === 'denied') {
+          toast.error('Microfone bloqueado neste site.', {
+            description:
+              'Clica no cadeado 🔒 à esquerda do URL → Microfone → Permitir. Depois recarrega a página.',
+            duration: 10_000,
+          });
+          return;
+        }
+      }
     } catch {
-      toast.error('Permissão de microfone negada.');
+      // Permissions API não suportada — segue para getUserMedia normal
+    }
+
+    // Pede permissão de mic (mostra prompt se ainda não respondido)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch (err) {
+      const e = err as DOMException;
+      console.error('[voice] getUserMedia error:', e.name, e.message);
+      switch (e.name) {
+        case 'NotAllowedError':
+        case 'SecurityError':
+          toast.error('Permissão de microfone negada.', {
+            description: 'Aceita o pedido do browser ou activa em 🔒 → Microfone → Permitir.',
+            duration: 10_000,
+          });
+          break;
+        case 'NotFoundError':
+        case 'OverconstrainedError':
+          toast.error('Nenhum microfone detectado.', {
+            description: 'Liga um microfone ou verifica em Definições do Windows → Som.',
+          });
+          break;
+        case 'NotReadableError':
+          toast.error('Microfone em uso por outra app.', {
+            description: 'Fecha apps que possam estar a usar o mic (Teams, Zoom, gravador) e tenta de novo.',
+          });
+          break;
+        default:
+          toast.error(`Erro de microfone: ${e.name}`, {
+            description: e.message || 'Tenta recarregar a página.',
+          });
+      }
       return;
     }
+
     enabledRef.current = true;
     setEnabled(true);
     setError(null);
